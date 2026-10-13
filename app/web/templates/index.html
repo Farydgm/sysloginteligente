@@ -2,152 +2,349 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>NOC Syslog Inteligente - Alfa</title>
+    <title>NOC Syslog Inteligente - Alfa v0.2.0</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f6f9; color: #333; }
-        h1, h2 { color: #004080; }
-        table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 15px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 14px; }
-        th { background: #004080; color: #fff; }
-        .badge { padding: 4px 8px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 12px; }
+        :root {
+            --bg-cream: #f4efe6;
+            --card-bg: #ffffff;
+            --primary-blue: #0047ab; /* Azul Cobalto Fuerte */
+            --accent-blue: #1d5ed8;  /* Azul Brillante */
+            --text-main: #1d2d44;
+            --border-color: #b5c4df;  
+        }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            margin: 0; 
+            padding: 25px; 
+            background-color: var(--bg-cream) !important; 
+            color: var(--text-main); 
+        }
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 3px solid var(--primary-blue); 
+            padding: 15px 20px;
+            margin-bottom: 20px; 
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,71,171,0.08);
+        }
+        h1 { color: var(--primary-blue); margin: 0; font-size: 24px; }
+        
+        .alert-banner { padding: 12px 20px; border-radius: 6px; font-weight: bold; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        .alert-ok { background: #e2f0d9; color: #274e13; border: 1px solid #c9e2b3; }
+        .alert-danger { background: #fce4d6; color: #c65911; border: 1px solid #f8cbad; }
+
+        .container { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }
+        @media (max-width: 1100px) { .container { grid-template-columns: 1fr; } }
+
+        .card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,71,171,0.06); border: 2px solid var(--border-color); margin-bottom: 20px; }
+        h2 { color: var(--primary-blue); font-size: 18px; margin-top: 0; border-bottom: 2px solid var(--primary-blue); padding-bottom: 8px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; background: #fff; }
+        th, td { padding: 9px; border: 1px solid #cce0ff; text-align: left; }
+        th { background: var(--primary-blue); color: #fff; font-weight: 600; }
+        
+        .badge { padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 11px; }
         .sev-crit { background: #d9534f; }
         .sev-warn { background: #f0ad4e; }
         .sev-info { background: #5bc0de; }
         .status-active { background: #5cb85c; }
         .status-maint { background: #f0ad4e; }
-        .filter-box, .section-box { background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; margin-bottom: 30px; }
-        .filter-box input, .filter-box select, .filter-box button { padding: 8px 12px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        .filter-box button { background: #004080; color: #fff; border: none; cursor: pointer; font-weight: bold; }
-        .btn-reset { background: #6c757d !important; text-decoration: none; display: inline-block; padding: 8px 12px; color: #fff; border-radius: 4px; font-size: 14px;}
-        pre { background: #1e1e1e; color: #dcdcdc; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 13px; }
-        .console-output { background: #000; color: #00ff00; padding: 15px; border-radius: 5px; font-family: monospace; min-height: 80px; max-height: 150px; overflow-y: auto; }
-        .console-box input { width: 75%; padding: 8px; font-family: monospace; }
-        .console-box button { padding: 8px 15px; background: #28a745; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+
+        .filter-box input, .filter-box select, .filter-box button { padding: 7px 10px; margin-right: 8px; border: 1px solid #99c2ff; border-radius: 4px; font-size: 13px; }
+        .filter-box button, .btn-primary { background: var(--accent-blue); color: #fff; border: none; cursor: pointer; font-weight: bold; padding: 8px 12px; border-radius: 4px; }
+        .btn-danger { background: #d9534f; color: #fff; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
+        .btn-update { background: #0047ab; color: #fff; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; margin-bottom: 4px;}
+        .btn-reset { background: #6c757d !important; text-decoration: none; display: inline-block; padding: 7px 10px; color: #fff; border-radius: 4px; font-size: 13px; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .form-grid input, .form-grid select { width: 100%; padding: 8px; border: 1px solid #99c2ff; border-radius: 4px; box-sizing: border-box; font-size: 13px; background: #fff; }
+
+        .edit-box { background: #eef4ff; padding: 12px; border: 1px solid var(--primary-blue); border-radius: 6px; margin-top: 5px; font-size: 12px; }
+        .edit-box input, .edit-box select { padding: 5px; margin-bottom: 5px; width: 100%; border: 1px solid #99c2ff; border-radius: 3px; box-sizing: border-box;}
+
+        /* Estilos de consola y submenú interactivo */
+        .console-output { background: #1e1e1e; color: #00ff00; padding: 12px; border-radius: 5px; font-family: monospace; height: 150px; overflow-y: auto; font-size: 12px; margin-top: 10px; }
+        .console-controls select, .console-controls input { width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #99c2ff; border-radius: 4px; }
+        .console-controls button { width: 100%; padding: 8px; background: #0047ab; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        
+        .cmd-submenu { background: #eef4ff; border: 1px solid #b5c4df; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+        .cmd-chip { display: inline-block; background: #fff; border: 1px solid #0047ab; color: #0047ab; padding: 4px 8px; margin: 3px; border-radius: 4px; font-size: 11px; font-family: monospace; cursor: pointer; font-weight: bold; }
+        .cmd-chip:hover { background: #0047ab; color: #fff; }
+
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; font-size: 11px; overflow-x: auto; max-height: 120px; }
     </style>
 </head>
 <body>
-    <h1>🛡️ NOC Syslog Inteligente (v0.2.0 Alfa)</h1>
-    <p>Estudiante: <strong>Faryd Albenis Garcia Moreno</strong> | Curso: Administración y Gestión de Redes</p>
-    <hr>
 
-    <h2>📊 Gestión y Filtrado de Eventos Syslog</h2>
-    <div class="filter-box">
-        <form method="GET" action="/">
-            <label for="ip"><strong>IP Dispositivo:</strong></label>
-            <input type="text" id="ip" name="ip" value="{{ ip_filter }}" placeholder="Ej. 192.168.1.1">
-            
-            <label for="severity"><strong>Severidad:</strong></label>
-            <select id="severity" name="severity">
-                <option value="">-- Todas --</option>
-                <option value="2" {% if sev_filter == '2' %}selected{% endif %}>Crítica (2)</option>
-                <option value="4" {% if sev_filter == '4' %}selected{% endif %}>Advertencia (4)</option>
-                <option value="5" {% if sev_filter == '5' %}selected{% endif %}>Normal (5)</option>
-                <option value="6" {% if sev_filter == '6' %}selected{% endif %}>Normal (6)</option>
-            </select>
-            
-            <button type="submit">🔍 Filtrar</button>
-            <a href="/" class="btn-reset">🔄 Limpiar</a>
-        </form>
+    <header>
+        <div>
+            <h1>🛡️ NOC Syslog Inteligente (v0.2.0 Alfa)</h1>
+            <p style="margin: 5px 0 0 0; font-size: 13px; color: #555;">Estudiante: <strong>Faryd Albenis Garcia Moreno</strong> | Curso: Administración y Gestión de Redes</p>
+        </div>
+        <div>
+            <span style="font-size: 12px; background: #e3edf9; color: var(--primary-blue); padding: 6px 12px; border-radius: 20px; font-weight: bold;">Tema: Crema & Azul Corporativo</span>
+        </div>
+    </header>
+
+    {% if critical_count > 0 %}
+    <div class="alert-banner alert-danger">
+        <span>🚨 ESTADO NOC: {{ noc_status }} ({{ critical_count }} eventos críticos detectados)</span>
+        <a href="/?severity=2" style="color: #c65911; font-weight: bold; text-decoration: underline;">Ver Críticos</a>
     </div>
-
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>IP Dispositivo</th>
-            <th>Facility</th>
-            <th>Severidad</th>
-            <th>Mensaje</th>
-            <th>Tipo</th>
-        </tr>
-        {% for event in events %}
-        <tr>
-            <td>{{ event.id }}</td>
-            <td>{{ event.device_ip }}</td>
-            <td>{{ event.facility }}</td>
-            <td>
-                {% if event.severity <= 2 %}
-                    <span class="badge sev-crit">Crítica ({{ event.severity }})</span>
-                {% elif event.severity <= 4 %}
-                    <span class="badge sev-warn">Advertencia ({{ event.severity }})</span>
-                {% else %}
-                    <span class="badge sev-info">Normal ({{ event.severity }})</span>
-                {% endif %}
-            </td>
-            <td>{{ event.message }}</td>
-            <td>{% if event.is_synthetic %} Sintético {% else %} Real {% endif %}</td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="6" style="text-align: center; color: #777;">No se encontraron eventos con los filtros seleccionados.</td>
-        </tr>
-        {% endfor %}
-    </table>
-
-    <h2>🖥️ Inventario de Dispositivos Monitoreados</h2>
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Hostname</th>
-            <th>IP Dispositivo</th>
-            <th>Fabricante</th>
-            <th>Modelo</th>
-            <th>Estado</th>
-            <th>Última Actualización</th>
-        </tr>
-        {% for dev in devices %}
-        <tr>
-            <td>{{ dev.id }}</td>
-            <td><strong>{{ dev.hostname }}</strong></td>
-            <td>{{ dev.device_ip }}</td>
-            <td>{{ dev.manufacturer }}</td>
-            <td>{{ dev.model }}</td>
-            <td>
-                {% if dev.status == 'Activo' %}
-                    <span class="badge status-active">{{ dev.status }}</span>
-                {% else %}
-                    <span class="badge status-maint">{{ dev.status }}</span>
-                {% endif %}
-            </td>
-            <td>{{ dev.last_updated }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-
-    <h2>⚙️ Plantillas de Configuración Multivendor (Cisco, Fortinet, Huawei)</h2>
-    <div class="section-box">
-        {% for brand, info in multivendor_configs.items() %}
-            <h3>{{ brand }} ({{ info.model }})</h3>
-            <p>{{ info.description }}</p>
-            <pre>{{ info.config }}</pre>
-        {% endfor %}
+    {% else %}
+    <div class="alert-banner alert-ok">
+        <span>✅ ESTADO NOC: {{ noc_status }}</span>
     </div>
+    {% endif %}
 
-    <h2>💻 Consola Segura Simulada (Solo Lectura con Allowlist)</h2>
-    <div class="section-box console-box">
-        <p>Comandos permitidos de prueba: <code>show version</code>, <code>show ip interface brief</code>, <code>show memory</code>, <code>show cpu</code></p>
-        <input type="text" id="cmdInput" placeholder="Escribe un comando autorizado (ej. show version)...">
-        <button onclick="runCommand()">Ejecutar</button>
-        <br><br>
-        <div id="consoleOutput" class="console-output">NOC Console v0.2.0 ready. Type a command above...</div>
+    <div class="container">
+        
+        <!-- COLUMNA IZQUIERDA -->
+        <div>
+            <div class="card">
+                <h2>📊 Gestión y Filtrado de Eventos Syslog</h2>
+                <div class="filter-box">
+                    <form method="GET" action="/">
+                        <label for="ip"><strong>IP:</strong></label>
+                        <input type="text" id="ip" name="ip" value="{{ ip_filter }}" placeholder="Ej. 192.168.1.1">
+                        
+                        <label for="severity"><strong>Sev:</strong></label>
+                        <select id="severity" name="severity">
+                            <option value="">-- Todas --</option>
+                            <option value="2" {% if sev_filter == '2' %}selected{% endif %}>Crítica (2)</option>
+                            <option value="4" {% if sev_filter == '4' %}selected{% endif %}>Advertencia (4)</option>
+                            <option value="5" {% if sev_filter == '5' %}selected{% endif %}>Normal (5)</option>
+                        </select>
+                        
+                        <button type="submit">🔍 Filtrar</button>
+                        <a href="/" class="btn-reset">🔄 Limpiar</a>
+                    </form>
+                </div>
+
+                <table>
+                    <tr>
+                        <th>ID</th>
+                        <th>IP Dispositivo</th>
+                        <th>Sev</th>
+                        <th>Mensaje</th>
+                        <th>Tipo</th>
+                    </tr>
+                    {% for event in events %}
+                    <tr>
+                        <td>{{ event.id }}</td>
+                        <td>{{ event.device_ip }}</td>
+                        <td>
+                            {% if event.severity <= 2 %}
+                                <span class="badge sev-crit">Crítica ({{ event.severity }})</span>
+                            {% elif event.severity <= 4 %}
+                                <span class="badge sev-warn">Adv ({{ event.severity }})</span>
+                            {% else %}
+                                <span class="badge sev-info">Norm ({{ event.severity }})</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.message }}</td>
+                        <td>{% if event.is_synthetic %} Sintético {% else %} Real {% endif %}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #777;">No hay eventos registrados.</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <!-- INVENTARIO INTERACTIVO -->
+            <div class="card">
+                <h2>🖥️ Inventario de Dispositivos y Control Interactivo</h2>
+                
+                <form action="/device/add" method="POST" style="background: #faf6ee; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px dashed #dcd3b8;">
+                    <h3 style="margin-top: 0; font-size: 14px; color: var(--primary-blue);">➕ Registrar Nuevo Dispositivo de Red</h3>
+                    <div class="form-grid">
+                        <input type="text" name="hostname" placeholder="Hostname (ej. Core-Router-02)" required>
+                        <input type="text" name="device_ip" placeholder="Dirección IP (ej. 192.168.1.2)" required>
+                        <input type="text" name="manufacturer" placeholder="Fabricante (Cisco, Huawei, etc.)" required>
+                        <input type="text" name="model" placeholder="Modelo (ej. S5700)" required>
+                        <input type="text" name="serial_number" placeholder="Número de Serial" required>
+                        <input type="text" name="location" placeholder="Ubicación física / Rack" required>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select name="status" style="padding: 7px; border-radius: 4px; border: 1px solid #99c2ff; font-size: 13px; background: #fff;">
+                            <option value="Activo">Activo</option>
+                            <option value="En Mantenimiento">En Mantenimiento</option>
+                            <option value="Inactivo">Inactivo</option>
+                        </select>
+                        <button type="submit" class="btn-primary" style="flex-grow: 1;">Guardar en Inventario</button>
+                    </div>
+                </form>
+
+                <table>
+                    <tr>
+                        <th>Hostname / IP</th>
+                        <th>Marca / Modelo / Serial</th>
+                        <th>Ubicación</th>
+                        <th>Estado & Reporte</th>
+                        <th>Acciones</th>
+                    </tr>
+                    {% for dev in devices %}
+                    <tr>
+                        <td>
+                            <strong>{{ dev.hostname }}</strong><br>
+                            <span style="font-size: 11px; color: #555;">{{ dev.device_ip }}</span>
+                        </td>
+                        <td>
+                            {{ dev.manufacturer }} - <i>{{ dev.model }}</i><br>
+                            <code style="font-size: 10px;">SN: {{ dev.serial_number }}</code>
+                        </td>
+                        <td>{{ dev.location }}</td>
+                        <td>
+                            {% if dev.status == 'Activo' %}
+                                <span class="badge status-active">{{ dev.status }}</span>
+                            {% else %}
+                                <span class="badge status-maint">{{ dev.status }}</span>
+                            {% endif %}
+                            <br><span style="font-size: 10px; color: #666;">Ult. Rep: {{ dev.last_updated }}</span>
+                        </td>
+                        <td>
+                            <button onclick="toggleEdit('edit-{{ dev.id }}')" class="btn-update">✏️ Editar</button>
+                            <form action="/device/delete/{{ dev.id }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este equipo?');" style="display:inline;">
+                                <button type="submit" class="btn-danger">🗑️ Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" style="padding: 0; border: none;">
+                            <div id="edit-{{ dev.id }}" class="edit-box" style="display: none;">
+                                <form action="/device/update/{{ dev.id }}" method="POST">
+                                    <strong style="color: var(--primary-blue);">Actualizar Estado y Ubicación para {{ dev.hostname }}</strong>
+                                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 6px; margin-top: 6px;">
+                                        <input type="text" name="location" value="{{ dev.location }}" placeholder="Nueva ubicación" required>
+                                        <input type="text" name="model" value="{{ dev.model }}" placeholder="Modelo" required>
+                                        <select name="status">
+                                            <option value="Activo" {% if dev.status == 'Activo' %}selected{% endif %}>Activo</option>
+                                            <option value="En Mantenimiento" {% if dev.status == 'En Mantenimiento' %}selected{% endif %}>En Mantenimiento</option>
+                                            <option value="Inactivo" {% if dev.status == 'Inactivo' %}selected{% endif %}>Inactivo</option>
+                                        </select>
+                                        <button type="submit" class="btn-primary" style="padding: 5px 10px; font-size: 11px;">Guardar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+
+        <!-- COLUMNA DERECHA: Consola Interactiva con Submenú de Comandos y Plantillas -->
+        <div>
+            <div class="card">
+                <h2>💻 Consola Segura Multivendor (Allowlist)</h2>
+                <div class="console-controls">
+                    <label><strong>Seleccionar Fabricante:</strong></label>
+                    <select id="vendorSelect" onchange="updateSubmenu()">
+                        <option value="Cisco">Cisco IOS</option>
+                        <option value="Fortinet">Fortinet FortiOS</option>
+                        <option value="Huawei">Huawei VRP</option>
+                    </select>
+
+                    <!-- Submenú Interactivo de Comandos Disponibles -->
+                    <label style="margin-top: 8px; display: block;"><strong>Catálogo de Comandos (Haz clic para ejecutar):</strong></label>
+                    <div id="cmdSubmenu" class="cmd-submenu">
+                        <!-- Se llena dinámicamente con JS -->
+                    </div>
+
+                    <label style="margin-top: 5px; display: block;"><strong>Comando Activo:</strong></label>
+                    <input type="text" id="cmdInput" placeholder="Selecciona arriba o escribe el comando...">
+                    <button onclick="runCommand()">🚀 Ejecutar Comando</button>
+                </div>
+                
+                <div id="consoleOutput" class="console-output">NOC Console v0.2.0 ready. Select command from menu or type above...</div>
+            </div>
+
+            <div class="card">
+                <h2>⚙️ Plantillas de Configuración Multivendor</h2>
+                {% for brand, info in multivendor_configs.items() %}
+                    <h4 style="margin: 10px 0 5px 0; color: var(--accent-blue);">{{ brand }} ({{ info.model }})</h4>
+                    <pre>{{ info.config }}</pre>
+                {% endfor %}
+            </div>
+        </div>
+
     </div>
 
     <script>
+        // Diccionario completo de comandos por fabricante para el submenú interactivo
+        const vendorCommands = {
+            "Cisco": [
+                "show version", "show ip interface brief", "show running-config", 
+                "show ip route", "show vlan brief", "show interfaces trunk", 
+                "show spanning-tree", "show cpu", "show memory"
+            ],
+            "Fortinet": [
+                "get system status", "get system performance", "show system interface", 
+                "get router info routing-table all", "show firewall policy", 
+                "diagnose sys top", "diagnose hardware sysinfo memory"
+            ],
+            "Huawei": [
+                "display version", "display interface brief", "display current-configuration", 
+                "display ip routing-table", "display vlan", "display cpu-usage", "display memory-usage"
+            ]
+        };
+
+        function updateSubmenu() {
+            const vendor = document.getElementById('vendorSelect').value;
+            const submenuDiv = document.getElementById('cmdSubmenu');
+            submenuDiv.innerHTML = "";
+            
+            if (vendorCommands[vendor]) {
+                vendorCommands[vendor].forEach(cmd => {
+                    const chip = document.createElement('span');
+                    chip.className = "cmd-chip";
+                    chip.innerText = cmd;
+                    chip.onclick = () => {
+                        document.getElementById('cmdInput').value = cmd;
+                        runCommand();
+                    };
+                    submenuDiv.appendChild(chip);
+                });
+            }
+        }
+
+        // Inicializar submenú al cargar la página
+        window.onload = function() {
+            updateSubmenu();
+        };
+
+        function toggleEdit(id) {
+            const box = document.getElementById(id);
+            box.style.display = box.style.display === "none" ? "block" : "none";
+        }
+
         async function runCommand() {
-            const input = document.getElementById('cmdInput').value;
+            const vendor = document.getElementById('vendorSelect').value;
+            const command = document.getElementById('cmdInput').value;
             const outputDiv = document.getElementById('consoleOutput');
             
-            outputDiv.innerText = "Ejecutando...";
+            if(!command) {
+                alert("Por favor selecciona o escribe un comando.");
+                return;
+            }
+
+            outputDiv.innerText = `Ejecutando en ${vendor}...`;
             
             try {
                 const response = await fetch('/api/console', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: input })
+                    body: JSON.stringify({ vendor: vendor, command: command })
                 });
                 const data = await response.json();
                 outputDiv.innerText = data.output;
             } catch (err) {
-                outputDiv.innerText = "Error de conexión con el backend de consola.";
+                outputDiv.innerText = "Error de comunicación con el backend de red.";
             }
         }
     </script>

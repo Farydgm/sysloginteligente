@@ -1,11 +1,11 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 import sqlite3
 import os
+from datetime import datetime
 from multivendor.templates_engine import MULTIVENDOR_CONFIGS, execute_safe_command
 
 app = Flask(__name__, template_folder='web/templates')
 
-# Rutas absolutas seguras
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 DB_PATH = os.path.join(PROJECT_ROOT, "data", "noc_syslog.db")
@@ -16,7 +16,6 @@ def get_db_connection():
     return conn
 
 def parse_and_load_sample_logs():
-    """Garantiza la creación de tablas e inserta datos iniciales si están vacías."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -40,11 +39,24 @@ def parse_and_load_sample_logs():
             device_ip TEXT NOT NULL,
             manufacturer TEXT NOT NULL,
             model TEXT NOT NULL,
+            serial_number TEXT,
+            location TEXT,
             status TEXT NOT NULL,
             last_updated TEXT NOT NULL
         )
     """)
     
+    # Asegurar columnas en bases de datos existentes de versiones anteriores
+    try:
+        cursor.execute("ALTER TABLE devices_inventory ADD COLUMN serial_number TEXT;")
+    except sqlite3.OperationalError:
+        pass # La columna ya existe
+        
+    try:
+        cursor.execute("ALTER TABLE devices_inventory ADD COLUMN location TEXT;")
+    except sqlite3.OperationalError:
+        pass # La columna ya existe
+
     cursor.execute("SELECT COUNT(*) FROM syslog_events")
     if cursor.fetchone()[0] == 0:
         sample_events = [
@@ -60,13 +72,13 @@ def parse_and_load_sample_logs():
     cursor.execute("SELECT COUNT(*) FROM devices_inventory")
     if cursor.fetchone()[0] == 0:
         sample_devices = [
-            ("Core-Router-01", "192.168.1.1", "Cisco", "Catalyst 3850", "Activo", "2026-10-12"),
-            ("Edge-Firewall", "10.0.0.1", "Fortinet", "FortiGate 60F", "Activo", "2026-10-12"),
-            ("Access-Switch-02", "192.168.1.254", "Cisco", "Catalyst 2960", "En Mantenimiento", "2026-10-11")
+            ("Core-Router-01", "192.168.1.1", "Cisco", "Catalyst 3850", "FOC2540X9ZQ", "Datacenter Principal (Rack A1)", "Activo", "2026-10-01"),
+            ("Edge-Firewall", "10.0.0.1", "Fortinet", "FortiGate 60F", "FGT60FTK22001920", "Perímetro / Oficina Central", "Activo", "2026-10-05"),
+            ("Access-Switch-02", "192.168.1.254", "Cisco", "Catalyst 2960", "CAT0920M3AB", "Piso 2 - Oficinas", "En Mantenimiento", "2026-10-10")
         ]
         cursor.executemany("""
-            INSERT INTO devices_inventory (hostname, device_ip, manufacturer, model, status, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO devices_inventory (hostname, device_ip, manufacturer, model, serial_number, location, status, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, sample_devices)
         
     conn.commit()
@@ -74,7 +86,6 @@ def parse_and_load_sample_logs():
 
 @app.route("/")
 def index():
-    """Ruta principal con filtros, inventario y plantillas multivendor."""
     parse_and_load_sample_logs()
     
     ip_filter = request.args.get('ip', '').strip()
@@ -95,7 +106,11 @@ def index():
     
     events = conn.execute(query, params).fetchall()
     devices = conn.execute("SELECT * FROM devices_inventory").fetchall()
+    
+    critical_count = conn.execute("SELECT COUNT(*) FROM syslog_events WHERE severity <= 2").fetchone()[0]
     conn.close()
+
+    noc_status = "CRÍTICO - Atención Requerida" if critical_count > 0 else "OPERATIVO - Sistema Estable"
 
     return render_template(
         "index.html", 
@@ -103,15 +118,66 @@ def index():
         devices=devices, 
         ip_filter=ip_filter, 
         sev_filter=sev_filter,
-        multivendor_configs=MULTIVENDOR_CONFIGS
+        multivendor_configs=MULTIVENDOR_CONFIGS,
+        noc_status=noc_status,
+        critical_count=critical_count
     )
+
+@app.route("/device/add", methods=["POST"])
+def add_device():
+    hostname = request.form.get("hostname")
+    device_ip = request.form.get("device_ip")
+    manufacturer = request.form.get("manufacturer")
+    model = request.form.get("model")
+    serial_number = request.form.get("serial_number")
+    location = request.form.get("location")
+    status = request.form.get("status", "Activo")
+    last_updated = datetime.now().strftime("%d-%m-%Y")
+    
+    conn = get_db_connection()
+    conn.execute("""
+        INSERT INTO devices_inventory (hostname, device_ip, manufacturer, model, serial_number, location, status, last_updated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (hostname, device_ip, manufacturer, model, serial_number, location, status, last_updated))
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('index'))
+
+@app.route("/device/update/<int:device_id>", methods=["POST"])
+def update_device(device_id):
+    """Ruta para actualizar estado, ubicación y detalles de un equipo existente."""
+    location = request.form.get("location")
+    status = request.form.get("status")
+    model = request.form.get("model")
+    last_updated = datetime.now().strftime("%d-%m-%Y")
+    
+    conn = get_db_connection()
+    conn.execute("""
+        UPDATE devices_inventory 
+        SET location = ?, status = ?, model = ?, last_updated = ?
+        WHERE id = ?
+    """, (location, status, model, last_updated, device_id))
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('index'))
+
+@app.route("/device/delete/<int:device_id>", methods=["POST"])
+def delete_device(device_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM devices_inventory WHERE id = ?", (device_id,))
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('index'))
 
 @app.route("/api/console", methods=["POST"])
 def api_console():
-    """Endpoint para la consola segura simulada con allowlist."""
     data = request.get_json() or {}
+    vendor = data.get("vendor", "Cisco")
     command = data.get("command", "")
-    result = execute_safe_command(command)
+    result = execute_safe_command(vendor, command)
     return jsonify(result)
 
 if __name__ == "__main__":
