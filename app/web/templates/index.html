@@ -5,21 +5,51 @@
     <title>NOC Syslog Inteligente - Alfa</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f4f6f9; color: #333; }
-        h1 { color: #004080; }
-        table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #004080; }
+        table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 15px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         th, td { padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 14px; }
         th { background: #004080; color: #fff; }
         .badge { padding: 4px 8px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 12px; }
         .sev-crit { background: #d9534f; }
         .sev-warn { background: #f0ad4e; }
         .sev-info { background: #5bc0de; }
+        .status-active { background: #5cb85c; }
+        .status-maint { background: #f0ad4e; }
+        .filter-box, .section-box { background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; margin-bottom: 30px; }
+        .filter-box input, .filter-box select, .filter-box button { padding: 8px 12px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .filter-box button { background: #004080; color: #fff; border: none; cursor: pointer; font-weight: bold; }
+        .btn-reset { background: #6c757d !important; text-decoration: none; display: inline-block; padding: 8px 12px; color: #fff; border-radius: 4px; font-size: 14px;}
+        pre { background: #1e1e1e; color: #dcdcdc; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 13px; }
+        .console-output { background: #000; color: #00ff00; padding: 15px; border-radius: 5px; font-family: monospace; min-height: 80px; max-height: 150px; overflow-y: auto; }
+        .console-box input { width: 75%; padding: 8px; font-family: monospace; }
+        .console-box button { padding: 8px 15px; background: #28a745; color: #fff; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
     <h1>🛡️ NOC Syslog Inteligente (v0.2.0 Alfa)</h1>
     <p>Estudiante: <strong>Faryd Albenis Garcia Moreno</strong> | Curso: Administración y Gestión de Redes</p>
     <hr>
-    <h2>📊 Últimos Eventos Syslog Normalizados</h2>
+
+    <h2>📊 Gestión y Filtrado de Eventos Syslog</h2>
+    <div class="filter-box">
+        <form method="GET" action="/">
+            <label for="ip"><strong>IP Dispositivo:</strong></label>
+            <input type="text" id="ip" name="ip" value="{{ ip_filter }}" placeholder="Ej. 192.168.1.1">
+            
+            <label for="severity"><strong>Severidad:</strong></label>
+            <select id="severity" name="severity">
+                <option value="">-- Todas --</option>
+                <option value="2" {% if sev_filter == '2' %}selected{% endif %}>Crítica (2)</option>
+                <option value="4" {% if sev_filter == '4' %}selected{% endif %}>Advertencia (4)</option>
+                <option value="5" {% if sev_filter == '5' %}selected{% endif %}>Normal (5)</option>
+                <option value="6" {% if sev_filter == '6' %}selected{% endif %}>Normal (6)</option>
+            </select>
+            
+            <button type="submit">🔍 Filtrar</button>
+            <a href="/" class="btn-reset">🔄 Limpiar</a>
+        </form>
+    </div>
+
     <table>
         <tr>
             <th>ID</th>
@@ -46,7 +76,80 @@
             <td>{{ event.message }}</td>
             <td>{% if event.is_synthetic %} Sintético {% else %} Real {% endif %}</td>
         </tr>
+        {% else %}
+        <tr>
+            <td colspan="6" style="text-align: center; color: #777;">No se encontraron eventos con los filtros seleccionados.</td>
+        </tr>
         {% endfor %}
     </table>
+
+    <h2>🖥️ Inventario de Dispositivos Monitoreados</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Hostname</th>
+            <th>IP Dispositivo</th>
+            <th>Fabricante</th>
+            <th>Modelo</th>
+            <th>Estado</th>
+            <th>Última Actualización</th>
+        </tr>
+        {% for dev in devices %}
+        <tr>
+            <td>{{ dev.id }}</td>
+            <td><strong>{{ dev.hostname }}</strong></td>
+            <td>{{ dev.device_ip }}</td>
+            <td>{{ dev.manufacturer }}</td>
+            <td>{{ dev.model }}</td>
+            <td>
+                {% if dev.status == 'Activo' %}
+                    <span class="badge status-active">{{ dev.status }}</span>
+                {% else %}
+                    <span class="badge status-maint">{{ dev.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ dev.last_updated }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>⚙️ Plantillas de Configuración Multivendor (Cisco, Fortinet, Huawei)</h2>
+    <div class="section-box">
+        {% for brand, info in multivendor_configs.items() %}
+            <h3>{{ brand }} ({{ info.model }})</h3>
+            <p>{{ info.description }}</p>
+            <pre>{{ info.config }}</pre>
+        {% endfor %}
+    </div>
+
+    <h2>💻 Consola Segura Simulada (Solo Lectura con Allowlist)</h2>
+    <div class="section-box console-box">
+        <p>Comandos permitidos de prueba: <code>show version</code>, <code>show ip interface brief</code>, <code>show memory</code>, <code>show cpu</code></p>
+        <input type="text" id="cmdInput" placeholder="Escribe un comando autorizado (ej. show version)...">
+        <button onclick="runCommand()">Ejecutar</button>
+        <br><br>
+        <div id="consoleOutput" class="console-output">NOC Console v0.2.0 ready. Type a command above...</div>
+    </div>
+
+    <script>
+        async function runCommand() {
+            const input = document.getElementById('cmdInput').value;
+            const outputDiv = document.getElementById('consoleOutput');
+            
+            outputDiv.innerText = "Ejecutando...";
+            
+            try {
+                const response = await fetch('/api/console', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: input })
+                });
+                const data = await response.json();
+                outputDiv.innerText = data.output;
+            } catch (err) {
+                outputDiv.innerText = "Error de conexión con el backend de consola.";
+            }
+        }
+    </script>
 </body>
 </html>
