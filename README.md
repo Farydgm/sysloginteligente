@@ -2,8 +2,8 @@
 
 Sistema avanzado de monitoreo, ingesta y análisis de eventos Syslog multivendor en tiempo real con consola interactiva SSH, desarrollado como proyecto para el curso de **Administración y Gestión de Redes**.
 
-* **Estudiante:** Faryd Albenis Garcia Moreno
-* **Institución:** Fundación Universitaria Compensar
+* **Estudiante:** Faryd Albenis Garcia Moreno[cite: 1]
+* **Institución:** Fundación Universitaria Compensar[cite: 1]
 * **Periodo:** 2026-2
 * **Versión:** 0.2.0 Alfa
 
@@ -11,9 +11,16 @@ Sistema avanzado de monitoreo, ingesta y análisis de eventos Syslog multivendor
 
 ## 📸 Vista Previa del Dashboard
 
-![NOC Syslog Dashboard](doc/menu_1.png)
+### 1. 📊 Dashboard & Métricas
+<img src="docs/menu_1.png" alt="Dashboard y Métricas" width="100%">
 
-> *Dashboard interactivo con barra de navegación por pestañas, métricas de incidentes de los últimos 3 meses, gestión de inventario y terminal SSH en tiempo real.*
+### 2. 🖥️ Inventario de Equipos
+<img src="docs/menu_2.png" alt="Inventario de Equipos" width="100%">
+
+### 3. 💻 Consola & SSH Interactivo
+<img src="docs/menu_3.png" alt="Consola y SSH Interactivo" width="100%">
+
+> *Plataforma interactiva con navegación modular por pestañas, métricas de incidentes de los últimos 3 meses, gestión de inventario y terminal SSH en tiempo real.*
 
 ---
 
