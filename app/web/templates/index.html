@@ -7,8 +7,8 @@
         :root {
             --bg-cream: #f4efe6;
             --card-bg: #ffffff;
-            --primary-blue: #0047ab; /* Azul Cobalto Fuerte */
-            --accent-blue: #1d5ed8;  /* Azul Brillante */
+            --primary-blue: #0047ab; 
+            --accent-blue: #1d5ed8;  
             --text-main: #1d2d44;
             --border-color: #b5c4df;  
         }
@@ -65,14 +65,15 @@
         .edit-box { background: #eef4ff; padding: 12px; border: 1px solid var(--primary-blue); border-radius: 6px; margin-top: 5px; font-size: 12px; }
         .edit-box input, .edit-box select { padding: 5px; margin-bottom: 5px; width: 100%; border: 1px solid #99c2ff; border-radius: 3px; box-sizing: border-box;}
 
-        /* Estilos de consola y submenú interactivo */
-        .console-output { background: #1e1e1e; color: #00ff00; padding: 12px; border-radius: 5px; font-family: monospace; height: 150px; overflow-y: auto; font-size: 12px; margin-top: 10px; }
+        .console-output { background: #1e1e1e; color: #00ff00; padding: 12px; border-radius: 5px; font-family: monospace; height: 160px; overflow-y: auto; font-size: 12px; margin-top: 10px; }
         .console-controls select, .console-controls input { width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #99c2ff; border-radius: 4px; }
         .console-controls button { width: 100%; padding: 8px; background: #0047ab; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
         
         .cmd-submenu { background: #eef4ff; border: 1px solid #b5c4df; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
         .cmd-chip { display: inline-block; background: #fff; border: 1px solid #0047ab; color: #0047ab; padding: 4px 8px; margin: 3px; border-radius: 4px; font-size: 11px; font-family: monospace; cursor: pointer; font-weight: bold; }
         .cmd-chip:hover { background: #0047ab; color: #fff; }
+
+        .latency-tag { font-size: 11px; color: #888; text-align: right; margin-top: 4px; font-weight: bold; }
 
         pre { background: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; font-size: 11px; overflow-x: auto; max-height: 120px; }
     </style>
@@ -105,7 +106,7 @@
         <!-- COLUMNA IZQUIERDA -->
         <div>
             <div class="card">
-                <h2>📊 Gestión y Filtrado de Eventos Syslog</h2>
+                <h2>📊 Gestión Inteligente y Diagnóstico de Eventos Syslog</h2>
                 <div class="filter-box">
                     <form method="GET" action="/">
                         <label for="ip"><strong>IP:</strong></label>
@@ -114,9 +115,14 @@
                         <label for="severity"><strong>Sev:</strong></label>
                         <select id="severity" name="severity">
                             <option value="">-- Todas --</option>
+                            <option value="0" {% if sev_filter == '0' %}selected{% endif %}>Emergencia (0)</option>
+                            <option value="1" {% if sev_filter == '1' %}selected{% endif %}>Alerta (1)</option>
                             <option value="2" {% if sev_filter == '2' %}selected{% endif %}>Crítica (2)</option>
+                            <option value="3" {% if sev_filter == '3' %}selected{% endif %}>Error (3)</option>
                             <option value="4" {% if sev_filter == '4' %}selected{% endif %}>Advertencia (4)</option>
-                            <option value="5" {% if sev_filter == '5' %}selected{% endif %}>Normal (5)</option>
+                            <option value="5" {% if sev_filter == '5' %}selected{% endif %}>Aviso (5)</option>
+                            <option value="6" {% if sev_filter == '6' %}selected{% endif %}>Info (6)</option>
+                            <option value="7" {% if sev_filter == '7' %}selected{% endif %}>Debug (7)</option>
                         </select>
                         
                         <button type="submit">🔍 Filtrar</button>
@@ -126,37 +132,54 @@
 
                 <table>
                     <tr>
-                        <th>ID</th>
-                        <th>IP Dispositivo</th>
-                        <th>Sev</th>
-                        <th>Mensaje</th>
+                        <th>ID / Fecha</th>
+                        <th>Origen (IP)</th>
+                        <th>Severidad (0-7)</th>
+                        <th>Componente Afectado</th>
+                        <th>Diagnóstico del Fallo (Syslog)</th>
                         <th>Tipo</th>
                     </tr>
                     {% for event in events %}
                     <tr>
-                        <td>{{ event.id }}</td>
-                        <td>{{ event.device_ip }}</td>
                         <td>
-                            {% if event.severity <= 2 %}
-                                <span class="badge sev-crit">Crítica ({{ event.severity }})</span>
+                            <strong>#{{ event.id }}</strong><br>
+                            <span style="font-size: 11px; color: #555;">{{ event.timestamp }}</span>
+                        </td>
+                        <td><code>{{ event.device_ip }}</code></td>
+                        <td>
+                            {% if event.severity <= 1 %}
+                                <span class="badge sev-crit" style="background: #8b0000;">Emergencia/Alerta ({{ event.severity }})</span>
+                            {% elif event.severity <= 3 %}
+                                <span class="badge sev-crit">Crítico/Error ({{ event.severity }})</span>
                             {% elif event.severity <= 4 %}
-                                <span class="badge sev-warn">Adv ({{ event.severity }})</span>
+                                <span class="badge sev-warn">Advertencia ({{ event.severity }})</span>
+                            {% elif event.severity == 5 %}
+                                <span class="badge" style="background: #1d5ed8;">Aviso ({{ event.severity }})</span>
                             {% else %}
-                                <span class="badge sev-info">Norm ({{ event.severity }})</span>
+                                <span class="badge sev-info">Info/Debug ({{ event.severity }})</span>
                             {% endif %}
                         </td>
-                        <td>{{ event.message }}</td>
+                        <td>
+                            <span style="font-weight: bold; color: var(--primary-blue);">
+                                {{ event.component if event.component else 'Sistema General' }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="font-size: 12px; background: #faf6ee; padding: 6px; border-left: 3px solid var(--accent-blue); border-radius: 3px;">
+                                {{ event.message }}
+                            </div>
+                        </td>
                         <td>{% if event.is_synthetic %} Sintético {% else %} Real {% endif %}</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #777;">No hay eventos registrados.</td>
+                        <td colspan="6" style="text-align: center; color: #777;">No hay eventos registrados.</td>
                     </tr>
                     {% endfor %}
                 </table>
             </div>
 
-            <!-- INVENTARIO INTERACTIVO -->
+            <!-- INVENTARIO INTERACTIVO CON FECHA DE ÚLTIMA ACTUALIZACIÓN -->
             <div class="card">
                 <h2>🖥️ Inventario de Dispositivos y Control Interactivo</h2>
                 
@@ -185,7 +208,7 @@
                         <th>Hostname / IP</th>
                         <th>Marca / Modelo / Serial</th>
                         <th>Ubicación</th>
-                        <th>Estado & Reporte</th>
+                        <th>Estado & Fecha Actualización</th>
                         <th>Acciones</th>
                     </tr>
                     {% for dev in devices %}
@@ -205,7 +228,7 @@
                             {% else %}
                                 <span class="badge status-maint">{{ dev.status }}</span>
                             {% endif %}
-                            <br><span style="font-size: 10px; color: #666;">Ult. Rep: {{ dev.last_updated }}</span>
+                            <br><span style="font-size: 10px; color: #555; font-weight: bold;">📅 {{ dev.last_updated }}</span>
                         </td>
                         <td>
                             <button onclick="toggleEdit('edit-{{ dev.id }}')" class="btn-update">✏️ Editar</button>
@@ -238,10 +261,16 @@
             </div>
         </div>
 
-        <!-- COLUMNA DERECHA: Consola Interactiva con Submenú de Comandos y Plantillas -->
+        <!-- COLUMNA DERECHA -->
         <div>
             <div class="card">
-                <h2>💻 Consola Segura Multivendor (Allowlist)</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="margin: 0;">💻 Consola Multivendor</h2>
+                    <button onclick="openSSHModal()" style="background: #28a745; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer;">
+                        🔗 Abrir SSH Directo
+                    </button>
+                </div>
+                <br>
                 <div class="console-controls">
                     <label><strong>Seleccionar Fabricante:</strong></label>
                     <select id="vendorSelect" onchange="updateSubmenu()">
@@ -250,11 +279,8 @@
                         <option value="Huawei">Huawei VRP</option>
                     </select>
 
-                    <!-- Submenú Interactivo de Comandos Disponibles -->
-                    <label style="margin-top: 8px; display: block;"><strong>Catálogo de Comandos (Haz clic para ejecutar):</strong></label>
-                    <div id="cmdSubmenu" class="cmd-submenu">
-                        <!-- Se llena dinámicamente con JS -->
-                    </div>
+                    <label style="margin-top: 8px; display: block;"><strong>Catálogo de Comandos:</strong></label>
+                    <div id="cmdSubmenu" class="cmd-submenu"></div>
 
                     <label style="margin-top: 5px; display: block;"><strong>Comando Activo:</strong></label>
                     <input type="text" id="cmdInput" placeholder="Selecciona arriba o escribe el comando...">
@@ -262,6 +288,7 @@
                 </div>
                 
                 <div id="consoleOutput" class="console-output">NOC Console v0.2.0 ready. Select command from menu or type above...</div>
+                <div id="mainLatency" class="latency-tag">Tiempo de respuesta: -- ms</div>
             </div>
 
             <div class="card">
@@ -275,8 +302,40 @@
 
     </div>
 
+    <!-- TERMINAL INTERACTIVA SSH (POP-UP MODAL) -->
+    <div id="sshModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: #fff; padding: 20px; border-radius: 8px; width: 550px; border: 2px solid var(--primary-blue); box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 8px;">
+                <h3 style="margin: 0; color: var(--primary-blue);">🖥️ Terminal SSH Interactiva en Tiempo Real</h3>
+                <span onclick="closeSSHModal()" style="cursor: pointer; font-weight: bold; font-size: 18px; color: #777;">&times;</span>
+            </div>
+            
+            <div id="sshAuthBox" style="margin-top: 10px; background: #f0f4fa; padding: 10px; border-radius: 6px;">
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px;">
+                    <input type="text" id="sshIp" placeholder="IP (ej. 192.168.1.1)" style="padding: 5px; font-size: 12px;">
+                    <input type="text" id="sshUser" placeholder="Usuario" style="padding: 5px; font-size: 12px;">
+                    <input type="password" id="sshPass" placeholder="Password" style="padding: 5px; font-size: 12px;">
+                </div>
+                <button onclick="connectSSH()" style="margin-top: 6px; width: 100%; background: #28a745; color: #fff; border: none; padding: 6px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    🔌 Conectar Sesión Interactiva
+                </button>
+            </div>
+
+            <div id="sshTerminalOutput" style="background: #1e1e1e; color: #00ff00; padding: 12px; border-radius: 4px; font-family: monospace; height: 180px; overflow-y: auto; font-size: 11px; margin-top: 10px;">
+                [NOC SSH Manager v0.2.0] Ingrese IP y credenciales para iniciar la sesión interactiva...
+            </div>
+
+            <div id="sshInteractivePrompt" style="display: flex; gap: 5px; margin-top: 8px;">
+                <span id="promptLabel" style="font-family: monospace; font-size: 12px; font-weight: bold; color: var(--primary-blue); padding-top: 6px;">SSH></span>
+                <input type="text" id="sshCmdInput" placeholder="Escribe comando (ej. show ip route)..." style="flex-grow: 1; padding: 6px; border: 1px solid #99c2ff; border-radius: 4px; font-family: monospace;">
+                <button onclick="sendInteractiveSSHCommand()" style="background: var(--primary-blue); color: #fff; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; cursor: pointer;">Enviar</button>
+            </div>
+
+            <div id="sshLatency" class="latency-tag">Latencia de Red SSH: -- ms</div>
+        </div>
+    </div>
+
     <script>
-        // Diccionario completo de comandos por fabricante para el submenú interactivo
         const vendorCommands = {
             "Cisco": [
                 "show version", "show ip interface brief", "show running-config", 
@@ -293,6 +352,96 @@
                 "display ip routing-table", "display vlan", "display cpu-usage", "display memory-usage"
             ]
         };
+
+        let currentSshSession = { connected: false, ip: '', user: '', pass: '' };
+
+        function openSSHModal() {
+            document.getElementById('sshModal').style.display = 'flex';
+        }
+
+        function closeSSHModal() {
+            document.getElementById('sshModal').style.display = 'none';
+        }
+
+        async function connectSSH() {
+            const ip = document.getElementById('sshIp').value;
+            const user = document.getElementById('sshUser').value;
+            const pass = document.getElementById('sshPass').value;
+            const terminal = document.getElementById('sshTerminalOutput');
+            const latencyTag = document.getElementById('sshLatency');
+
+            if (!ip || !user || !pass) {
+                alert("Por favor ingrese IP, usuario y contraseña.");
+                return;
+            }
+
+            terminal.innerText += `\n[CONECTANDO] Estableciendo canal interactivo con ${ip}...`;
+
+            try {
+                const response = await fetch('/api/console', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: 'ssh',
+                        action: 'connect',
+                        ip: ip,
+                        username: user,
+                        password: pass
+                    })
+                });
+                const data = await response.json();
+                currentSshSession = { connected: (data.status === 'success'), ip: ip, user: user, pass: pass };
+                
+                if (currentSshSession.connected) {
+                    document.getElementById('promptLabel').innerText = `${user}@${ip}#`;
+                }
+                
+                terminal.innerText += `\n${data.output}\n`;
+                latencyTag.innerText = `Latencia de Red SSH: ${data.latency_ms} ms`;
+                terminal.scrollTop = terminal.scrollHeight;
+            } catch (err) {
+                terminal.innerText += "\n[ERROR]: No se pudo establecer la sesión interactiva.";
+            }
+        }
+
+        async function sendInteractiveSSHCommand() {
+            const cmdInput = document.getElementById('sshCmdInput');
+            const command = cmdInput.value;
+            const terminal = document.getElementById('sshTerminalOutput');
+            const latencyTag = document.getElementById('sshLatency');
+
+            if (!command) return;
+
+            if (!currentSshSession.connected) {
+                await connectSSH();
+                if (!currentSshSession.connected) return;
+            }
+
+            terminal.innerText += `\n${currentSshSession.user}@${currentSshSession.ip}# ${command}`;
+            terminal.scrollTop = terminal.scrollHeight;
+
+            try {
+                const response = await fetch('/api/console', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: 'ssh',
+                        action: 'exec',
+                        ip: currentSshSession.ip,
+                        username: currentSshSession.user,
+                        password: currentSshSession.pass,
+                        command: command
+                    })
+                });
+                const data = await response.json();
+                terminal.innerText += `\n${data.output}\n`;
+                latencyTag.innerText = `Latencia de Red SSH: ${data.latency_ms} ms`;
+                terminal.scrollTop = terminal.scrollHeight;
+                cmdInput.value = "";
+            } catch (err) {
+                terminal.innerText += "\n[ERROR]: Falló el envío del comando.";
+            }
+        }
 
         function updateSubmenu() {
             const vendor = document.getElementById('vendorSelect').value;
@@ -313,7 +462,6 @@
             }
         }
 
-        // Inicializar submenú al cargar la página
         window.onload = function() {
             updateSubmenu();
         };
@@ -327,6 +475,7 @@
             const vendor = document.getElementById('vendorSelect').value;
             const command = document.getElementById('cmdInput').value;
             const outputDiv = document.getElementById('consoleOutput');
+            const latencyTag = document.getElementById('mainLatency');
             
             if(!command) {
                 alert("Por favor selecciona o escribe un comando.");
@@ -339,10 +488,11 @@
                 const response = await fetch('/api/console', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vendor: vendor, command: command })
+                    body: JSON.stringify({ mode: 'simulate', vendor: vendor, command: command })
                 });
                 const data = await response.json();
                 outputDiv.innerText = data.output;
+                latencyTag.innerText = `Tiempo de respuesta del proceso: ${data.latency_ms} ms`;
             } catch (err) {
                 outputDiv.innerText = "Error de comunicación con el backend de red.";
             }
