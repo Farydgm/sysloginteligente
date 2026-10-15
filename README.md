@@ -11,7 +11,7 @@ Sistema avanzado de monitoreo, ingesta y análisis de eventos Syslog multivendor
 
 ## 📸 Vista Previa del Dashboard
 
-![NOC Syslog Dashboard](doc/menu_1.png, menu_2.png, menu_3.png)
+![NOC Syslog Dashboard](doc/menu_1.png)
 
 > *Dashboard interactivo con barra de navegación por pestañas, métricas de incidentes de los últimos 3 meses, gestión de inventario y terminal SSH en tiempo real.*
 
