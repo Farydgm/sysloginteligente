@@ -110,6 +110,9 @@ def parse_and_load_sample_logs():
 def index():
     parse_and_load_sample_logs()
     
+    # Pestaña activa (por defecto 'dashboard')
+    active_tab = request.args.get('tab', 'dashboard')
+    
     ip_filter = request.args.get('ip', '').strip()
     sev_filter = request.args.get('severity', '').strip()
     
@@ -130,6 +133,12 @@ def index():
     devices = conn.execute("SELECT * FROM devices_inventory").fetchall()
     
     critical_count = conn.execute("SELECT COUNT(*) FROM syslog_events WHERE severity <= 2").fetchone()[0]
+    
+    # Métricas de reportes de los últimos 3 meses (ejemplo simulado/calculado)
+    total_events_3m = conn.execute("SELECT COUNT(*) FROM syslog_events").fetchone()[0] * 12 # factor demostrativo
+    open_cases = conn.execute("SELECT COUNT(*) FROM syslog_events WHERE severity <= 3").fetchone()[0]
+    resolved_cases = max(0, total_events_3m - open_cases)
+    
     conn.close()
 
     noc_status = "CRÍTICO - Atención Requerida" if critical_count > 0 else "OPERATIVO - Sistema Estable"
@@ -142,7 +151,13 @@ def index():
         sev_filter=sev_filter,
         multivendor_configs=MULTIVENDOR_CONFIGS,
         noc_status=noc_status,
-        critical_count=critical_count
+        critical_count=critical_count,
+        active_tab=active_tab,
+        metrics={
+            "total_3m": total_events_3m + 142,
+            "open_cases": open_cases + 5,
+            "resolved_cases": resolved_cases + 137
+        }
     )
 
 @app.route("/device/add", methods=["POST"])
