@@ -3,10 +3,12 @@ import sqlite3
 import os
 import re
 import time
+import socket
+import threading
 from datetime import datetime
+
 from multivendor.templates_engine import MULTIVENDOR_CONFIGS, execute_safe_command
 
-# Importar gestor SSH
 # Importar gestor SSH interactivo actualizado
 try:
     from app.ssh_manager import handle_ssh_action
@@ -41,7 +43,6 @@ def parse_and_load_sample_logs():
             is_synthetic BOOLEAN DEFAULT 1
         )
     """)
-    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS devices_inventory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +70,7 @@ def parse_and_load_sample_logs():
     except sqlite3.OperationalError:
         pass
 
-    # Cargar / Actualizar inventario de clase (Meraki, Catalyst, TP-Link) asegurando que no se dupliquen
+    # Cargar / Actualizar inventario de clase
     sample_devices = [
         ("MX68CW-Edge-01", "192.168.10.1", "Meraki", "MX68CW", "Q2KN-89XY-WZ12", "Datacenter / SASE Perímetro", "Activo", "2026-10-15 08:00:00"),
         ("Core-Switch-C1000", "192.168.1.254", "Cisco", "Catalyst C1000 (Capa 2)", "FOC2540X9ZQ", "Rack Principal - Unid 5", "Activo", "2026-10-15 08:00:00"),
@@ -84,35 +85,81 @@ def parse_and_load_sample_logs():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, dev)
 
-    # Cargar eventos sintéticos con los 7 niveles de Syslog (0 al 7) si la tabla está vacía
-    # Forzar la actualización y recarga de eventos con los 7 niveles para los nuevos equipos
-    cursor.execute("DELETE FROM syslog_events WHERE is_synthetic = 1")
+    # Cargar eventos sintéticos iniciales si la tabla no tiene datos propios recientes
+    cursor.execute("SELECT COUNT(*) FROM syslog_events WHERE is_synthetic = 1")
+    count_syn = cursor.fetchone()[0]
     
-    sample_events = [
-        ("192.168.1.1", "Cisco", "2026-10-15 08:00:00", 0, 0, "Emergency: System thermal shutdown imminent due to high core temperature on core chassis", "Hardware / Chasis", 1),
-        ("192.168.10.1", "Meraki", "2026-10-15 08:15:22", 1, 1, "Alert: BGP neighbor down on WAN interface, routing redundancy lost for SASE perimeter", "Enrutamiento / BGP", 1),
-        ("192.168.1.254", "Cisco", "2026-10-15 08:30:05", 2, 2, "Critical: Catalyst C1000 port Gi0/5 security violation, DACL blocked unauthorized MAC", "Seguridad / MAB", 1),
-        ("10.0.0.1", "Fortinet", "2026-10-15 09:12:30", 3, 3, "Error: IPsec VPN tunnel phase 1 failed negotiation with peer branch office", "VPN / IPsec", 1),
-        ("192.168.20.1", "TP-Link", "2026-10-15 09:40:10", 4, 4, "Warning: High CPU usage (85%) detected on Archer A6 Mesh node administration", "Sistema / CPU", 1),
-        ("192.168.1.1", "Cisco", "2026-10-15 10:00:00", 5, 5, "Notice: Line protocol on Interface GigabitEthernet0/1, changed state to up", "Interfaz: Gi0/1", 1),
-        ("192.168.20.2", "TP-Link", "2026-10-15 10:10:00", 6, 6, "Informational: User admin successfully logged in via SSH management plane", "Acceso / AAA", 1),
-        ("192.168.10.1", "Meraki", "2026-10-15 10:20:00", 7, 7, "Debug: SASE packet flow trace enabled for rule ID 402 on SD-WAN interface", "Debug / SD-WAN", 1)
-    ]
-    cursor.executemany("""
-        INSERT INTO syslog_events (device_ip, manufacturer, timestamp, facility, severity, message, component, is_synthetic)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, sample_events)
-        
+    if count_syn == 0:
+        sample_events = [
+            ("192.168.1.1", "Cisco", "2026-10-15 08:00:00", 0, 0, "Emergency: System thermal shutdown imminent due to high core temperature on core chassis", "Hardware / Chasis", 1),
+            ("192.168.10.1", "Meraki", "2026-10-15 08:15:22", 1, 1, "Alert: BGP neighbor down on WAN interface, routing redundancy lost for SASE perimeter", "Enrutamiento / BGP", 1),
+            ("192.168.1.254", "Cisco", "2026-10-15 08:30:05", 2, 2, "Critical: Catalyst C1000 port Gi0/5 security violation, DACL blocked unauthorized MAC", "Seguridad / MAB", 1),
+            ("10.0.0.1", "Fortinet", "2026-10-15 09:12:30", 3, 3, "Error: IPsec VPN tunnel phase 1 failed negotiation with peer branch office", "VPN / IPsec", 1),
+            ("192.168.20.1", "TP-Link", "2026-10-15 09:40:10", 4, 4, "Warning: High CPU usage (85%) detected on Archer A6 Mesh node administration", "Sistema / CPU", 1),
+            ("192.168.1.1", "Cisco", "2026-10-15 10:00:00", 5, 5, "Notice: Line protocol on Interface GigabitEthernet0/1, changed state to up", "Interfaz: Gi0/1", 1),
+            ("192.168.20.2", "TP-Link", "2026-10-15 10:10:00", 6, 6, "Informational: User admin successfully logged in via SSH management plane", "Acceso / AAA", 1),
+            ("192.168.10.1", "Meraki", "2026-10-15 10:20:00", 7, 7, "Debug: SASE packet flow trace enabled for rule ID 402 on SD-WAN interface", "Debug / SD-WAN", 1)
+        ]
+        cursor.executemany("""
+            INSERT INTO syslog_events (device_ip, manufacturer, timestamp, facility, severity, message, component, is_synthetic)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, sample_events)
+              
     conn.commit()
     conn.close()
+
+
+# --- MOTOR DE ESCUCHA SYSLOG UDP EN VIVO (PUERTO 514) ---
+def parsear_syslog_remoto(mensaje):
+    """Extrae el nivel de severidad y el texto del mensaje syslog de equipos reales"""
+    m = re.search(r'%[A-Z0-9_]+-(\d)-[A-Z0-9_]+:\s*(.*)', mensaje)
+    if m:
+        return int(m.group(1)), m.group(2)
+    return 5, mensaje # Por defecto Notice/Info si no aplica expresión exacta de Cisco
+
+def servidor_syslog_udp():
+    """Hilo en segundo plano para escuchar eventos físicos reales"""
+    puerto = 514
+    servidor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        servidor.bind(('0.0.0.0', puerto))
+        print(f"==================================================")
+        print(f"🟢 [SYSLOG REAL] Escuchando paquetes en puerto UDP {puerto}")
+        print(f"==================================================")
+    except Exception as e:
+        print(f"⚠️ [SYSLOG REAL] No se pudo abrir el puerto 514: {e}")
+        print("💡 RECUERDA: En Windows debes ejecutar VS Code como Administrador.")
+        return
+
+    while True:
+        try:
+            data, addr = servidor.recvfrom(2048)
+            ip_origen = addr[0]
+            mensaje_raw = data.decode('utf-8', errors='ignore').strip()
+            
+            severidad, texto_limpio = parsear_syslog_remoto(mensaje_raw)
+            fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Guardar el log real directamente en SQLite
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO syslog_events (device_ip, manufacturer, timestamp, facility, severity, message, component, is_synthetic)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (ip_origen, "Cisco/Físico", fecha_hora, 1, severidad, texto_limpio, "Hardware Real", 0))
+            conn.commit()
+            conn.close()
+
+            print(f"📥 [LOG EN VIVO] De: {ip_origen} | Sev: {severidad} | Msg: {texto_limpio}")
+        except Exception as err:
+            print(f"❌ Error al procesar paquete Syslog UDP: {err}")
+
 
 @app.route("/")
 def index():
     parse_and_load_sample_logs()
     
-    # Pestaña activa (por defecto 'dashboard')
     active_tab = request.args.get('tab', 'dashboard')
-    
     ip_filter = request.args.get('ip', '').strip()
     sev_filter = request.args.get('severity', '').strip()
     
@@ -133,16 +180,13 @@ def index():
     devices = conn.execute("SELECT * FROM devices_inventory").fetchall()
     
     critical_count = conn.execute("SELECT COUNT(*) FROM syslog_events WHERE severity <= 2").fetchone()[0]
+    noc_status = "CRÍTICO - Atención Requerida" if critical_count > 0 else "OPERATIVO - Sistema Estable"
     
-    # Métricas de reportes de los últimos 3 meses (ejemplo simulado/calculado)
-    total_events_3m = conn.execute("SELECT COUNT(*) FROM syslog_events").fetchone()[0] * 12 # factor demostrativo
+    total_events_3m = conn.execute("SELECT COUNT(*) FROM syslog_events").fetchone()[0] * 12 
     open_cases = conn.execute("SELECT COUNT(*) FROM syslog_events WHERE severity <= 3").fetchone()[0]
     resolved_cases = max(0, total_events_3m - open_cases)
     
     conn.close()
-
-    noc_status = "CRÍTICO - Atención Requerida" if critical_count > 0 else "OPERATIVO - Sistema Estable"
-
     return render_template(
         "index.html", 
         events=events, 
@@ -215,13 +259,12 @@ def api_console():
     mode = data.get("mode", "simulate")
     
     if mode == "ssh":
-        action = data.get("action", "exec")  # 'connect' o 'exec'
+        action = data.get("action", "exec")
         ip = data.get("ip", "")
         username = data.get("username", "")
         password = data.get("password", "")
         command = data.get("command", "")
         
-        # Llamamos al gestor interactivo
         result = handle_ssh_action(action, ip, username, password, command)
     else:
         vendor = data.get("vendor", "Cisco")
@@ -234,4 +277,9 @@ def api_console():
     return jsonify(result)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # Arrancar el hilo del servidor UDP Syslog en segundo plano
+    hilo_syslog = threading.Thread(target=servidor_syslog_udp, daemon=True)
+    hilo_syslog.start()
+
+    # Arrancar la aplicación Flask web
+    app.run(host="0.0.0.0", debug=True, port=5000)
