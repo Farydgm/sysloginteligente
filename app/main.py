@@ -119,7 +119,7 @@ def parsear_syslog_remoto(mensaje):
 
 def servidor_syslog_udp():
     """Hilo en segundo plano para escuchar eventos físicos reales"""
-    puerto = 514
+    puerto = 5140
     servidor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         servidor.bind(('0.0.0.0', puerto))
